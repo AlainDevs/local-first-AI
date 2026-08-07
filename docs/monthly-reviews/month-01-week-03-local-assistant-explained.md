@@ -655,26 +655,26 @@ The tested sequence is shown in [`test_grounded_question_lets_model_search_then_
 sequenceDiagram
     actor User
     participant Session as ChatSession
-    participant Loop as run_assistant_turn
+    participant Runner as run_assistant_turn
     participant Model as Local model
     participant Tool as execute_tool
     participant Search as Week 2 search_context
     participant DB as SQLite
 
     User->>Session: What did we decide about SQLite?
-    Session->>Loop: messages + model + storage
-    Loop->>Model: messages + six tool definitions
-    Model-->>Loop: search_context_items({"keyword":"sqlite"})
-    Loop->>Tool: validate and execute read
-    Tool->>Search: search_context_items("sqlite")
-    Search->>DB: SELECT title/content LIKE %sqlite%
+    Session->>Runner: messages + model + storage
+    Runner->>Model: messages + six tool definitions
+    Model-->>Runner: request search_context_items with keyword sqlite
+    Runner->>Tool: validate and execute read
+    Tool->>Search: search for keyword sqlite
+    Search->>DB: query matching titles and content
     DB-->>Search: matching rows
     Search-->>Tool: list of dictionaries
-    Tool-->>Loop: JSON count + results
-    Loop->>Model: append tool-result message
-    Model-->>Loop: final grounded answer
-    Loop-->>Session: final text
-    Session-->>User: assistant> ...
+    Tool-->>Runner: JSON count + results
+    Runner->>Model: append tool-result message
+    Model-->>Runner: final grounded answer
+    Runner-->>Session: final text
+    Session-->>User: display final answer
 ```
 
 ### Why two model calls are normally needed
@@ -725,30 +725,32 @@ The tested behavior is in [`test_remember_request_reaches_model_and_creates_note
 sequenceDiagram
     actor User
     participant Session as ChatSession
+    participant Runner as run_assistant_turn
     participant Model as Local model
-    participant Loop as run_assistant_turn
     participant Tool as execute_tool
     participant Confirm as cli_confirm
-    participant Create as Week 2 create_context
+    participant Storage as Week 2 create_context
     participant DB as SQLite
 
     User->>Session: Remember that ... port 8080
-    Session->>Model: message + tools
-    Model-->>Loop: create_context_item(arguments)
-    Loop->>Tool: name + JSON arguments
+    Session->>Runner: message + tools
+    Runner->>Model: message + tool definitions
+    Model-->>Runner: request create_context_item
+    Runner->>Tool: name + JSON arguments
     Tool->>Tool: allow-list, parse, validate
     Tool->>Confirm: show normalized proposed values
-    Confirm-->>User: Confirm this change? [y/N]
-    User-->>Confirm: y
+    Confirm-->>User: request confirmation
+    User-->>Confirm: approve
     Confirm-->>Tool: true
-    Tool->>Create: create_context_item(...)
-    Create->>DB: INSERT row
-    DB-->>Create: new row ID
-    Create-->>Tool: integer ID
-    Tool-->>Loop: {"status":"created","id":...}
-    Loop->>Model: tool-result message
-    Model-->>Session: Saved it.
-    Session-->>User: assistant> Saved it.
+    Tool->>Storage: create context item
+    Storage->>DB: INSERT row
+    DB-->>Storage: new row ID
+    Storage-->>Tool: integer ID
+    Tool-->>Runner: created status and new item ID
+    Runner->>Model: tool-result message
+    Model-->>Runner: final saved confirmation
+    Runner-->>Session: final text
+    Session-->>User: display saved confirmation
 ```
 
 ### The write safety gate
